@@ -2,6 +2,20 @@ import subprocess
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
+def get_git_config_value(key, global_scope=False):
+    scope = "--global" if global_scope else "--local"
+    try:
+        result = subprocess.run(
+            ["git", "config", scope, key],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        print(f"Could not get {key}. Error: {e}")
+        return None
+
 def set_git_email(email, global_scope=False):
     try:
         scope = "--global" if global_scope else "--local"
@@ -18,14 +32,20 @@ def set_git_username(username, global_scope=False):
     except subprocess.CalledProcessError as e:
         messagebox.showerror("Error", f"An error occurred while setting the Git user name: {e}")
 
+def load_initial_config():
+    # Load initial Git configuration with global scope
+    email = get_git_config_value("user.email", global_scope=True)
+    username = get_git_config_value("user.name", global_scope=True)
 
-def set_git_userpassword(userpassword, global_scope=False):
-    try:
-        scope = "--global" if global_scope else "--local"
-        subprocess.run(["git", "config", scope, "user.password", userpassword], check=True)
-        messagebox.showinfo("Success", f"Git user name has been set to: {userpassword}")
-    except subprocess.CalledProcessError as e:
-        messagebox.showerror("Error", f"An error occurred while setting the Git user password: {e}")
+    print(f"Loaded email: {email}, username: {username}")  # Debug prints
+
+    # Update entry fields if values are found
+    if email:
+        email_entry.delete(0, tk.END)
+        email_entry.insert(0, email)
+    if username:
+        username_entry.delete(0, tk.END)
+        username_entry.insert(0, username)
 
 def load_from_file():
     filename = filedialog.askopenfilename(filetypes=[("Text files", "*.txt")])
@@ -35,12 +55,10 @@ def load_from_file():
         with open(filename, 'r') as file:
             config = {}
             for line in file:
-                # Strip whitespace and split by '='
                 if '=' in line:
-                    key, value = line.split('=', 1)  # Split on first '='
+                    key, value = line.split('=', 1)
                     config[key.strip()] = value.strip()
 
-            # Update entries with the loaded configurations
             if 'email' in config:
                 email_entry.delete(0, tk.END)
                 email_entry.insert(0, config['email'])
@@ -53,31 +71,20 @@ def load_from_file():
             else:
                 messagebox.showerror("Error", "Username entry is missing in the file.")
 
-            if 'password' in config:
-                password_entry.delete(0, tk.END)
-                password_entry.insert(0, config['password'])
-            else:
-                messagebox.showerror("Error", "Password entry is missing in the file.")
-
     except Exception as e:
         messagebox.showerror("Error", f"An error occurred while reading the file: {e}")
 
 def on_submit():
     email = email_entry.get().strip()
     username = username_entry.get().strip()
-    password = password_entry.get().strip()
     global_scope = global_var.get()
 
-    if not email or not username or not password:
-        messagebox.showerror("Error", "Email, Username, and Password fields cannot be empty.")
+    if not email or not username:
+        messagebox.showerror("Error", "Email and Username fields cannot be empty.")
         return
 
     set_git_email(email, global_scope)
     set_git_username(username, global_scope)
-    set_git_userpassword(password,global_scope)
-    # Here we show the password just for demonstration purposes
-    # Note: You typically wouldn't show or store passwords in this manner.
-    messagebox.showinfo("Password", f"The password is: {password}")
 
 # GUI setup
 root = tk.Tk()
@@ -96,13 +103,8 @@ tk.Label(frame, text="Username:").grid(row=1, column=0, sticky='e')
 username_entry = tk.Entry(frame, width=30)
 username_entry.grid(row=1, column=1)
 
-# Password entry
-tk.Label(frame, text="Password:").grid(row=2, column=0, sticky='e')
-password_entry = tk.Entry(frame, width=30, show="*")
-password_entry.grid(row=2, column=1)
-
 # Global scope checkbox
-global_var = tk.BooleanVar(value=False)
+global_var = tk.BooleanVar(value=True)  # Default to global settings
 global_check = tk.Checkbutton(frame, text="Set Globally", variable=global_var)
 global_check.grid(row=3, columnspan=2, pady=5)
 
@@ -113,6 +115,9 @@ load_button.grid(row=4, columnspan=2, pady=5)
 # Submit button
 submit_button = tk.Button(frame, text="Submit", command=on_submit)
 submit_button.grid(row=5, columnspan=2, pady=10)
+
+# Load initial configuration
+load_initial_config()
 
 # Start the GUI event loop
 root.mainloop()
